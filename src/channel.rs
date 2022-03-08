@@ -1,4 +1,4 @@
-pub fn channel_demo() {
+pub fn test_channel() {
     let (tx, rx) = flume::unbounded();
     let threads: Vec<_> = (0..2)
         .map(|id| {
@@ -39,13 +39,14 @@ impl Consumer {
 }
 
 impl Iterator for Consumer {
-    type Item = ();
+    type Item = i32;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Ok(val) = self.rx.try_recv() {
             println!("consumed {}", val);
+            return Some(val);
         }
-        None
+        None 
     }
 }
 
@@ -64,23 +65,31 @@ impl Producer {
 }
 
 impl Iterator for Producer {
-    type Item = ();
+    type Item = i32;
 
     fn next(&mut self) -> Option<Self::Item> {
         println!("produced {}", self.current);
         self.tx.try_send(self.current).ok();
         self.current+=1;
-        None
+
+        Some(self.current)
     }
 }
 
-pub fn iterator_demo() {
+pub fn test_iter() {
     let (tx, rx) = flume::bounded(1);
     let mut producer = Producer::new(tx);
-    let mut consumer = Consumer::new(rx.clone());
+    let mut consumer = Consumer::new(rx);
 
     producer.next();
     consumer.next();
     producer.next();
     producer.next();
+}
+
+pub fn infinite_produce() {
+    let (tx, _) = flume::unbounded();
+    let producer = Producer::new(tx);
+
+    producer.for_each(drop);
 }

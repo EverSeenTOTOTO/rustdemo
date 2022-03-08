@@ -1,10 +1,5 @@
-// mod test_proxy;
-mod channel;
-mod packet;
-mod actor;
+mod io;
 
 fn main() {
-    // actor::test_actor_multi_thread();
-    
-    channel::iterator_demo();
+    io::test_read_dev_zero().unwrap();
 }

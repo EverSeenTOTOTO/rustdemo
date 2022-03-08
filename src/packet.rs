@@ -24,7 +24,7 @@ impl Packet {
         stringified["command"] = json::JsonValue::String(command.to_string());
         stringified["data"] = json::JsonValue::String(data.to_string());
 
-        return stringified.dump();
+        stringified.dump()
     }
 
     pub fn parse(msg: &str) -> Packet {
@@ -34,7 +34,7 @@ impl Packet {
         let command = parsed["command"].as_str().unwrap();
         let data = parsed["data"].as_str().unwrap();
 
-        return Packet::new(from, to, command, data)
+        Packet::new(from, to, command, data)
     }
 }
 

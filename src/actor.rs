@@ -1,5 +1,8 @@
 use crate::packet::*;
 
+type Sender = crossbeam_channel::Sender<String>;
+type Receiver = crossbeam_channel::Receiver<String>;
+
 fn is_prime(n: u64) -> bool {
     if n == 2 {
         return true;
@@ -14,19 +17,19 @@ fn is_prime(n: u64) -> bool {
         }
         i += 2;
     }
-    return true;
+    true
 }
 
 // 模拟收发包，tx、rx是同一channel的两端，类似事件总线
 #[derive(Debug)]
 pub struct SimpleChannelMail {
-    rx: crossbeam_channel::Receiver<String>,
-    tx: crossbeam_channel::Sender<String>,
+    rx: Receiver,
+    tx: Sender,
     pub address: String,
 }
 
 impl SimpleChannelMail {
-    pub fn new(address: &str, rx: crossbeam_channel::Receiver<String>, tx: crossbeam_channel::Sender<String>) -> SimpleChannelMail {
+    pub fn new(address: &str, rx: Receiver, tx: Sender) -> SimpleChannelMail {
         SimpleChannelMail {
             rx,
             tx,
@@ -47,6 +50,7 @@ impl SimpleChannelMail {
             let packet = Packet::parse(&msg);
 
             // 取出事件，看是不是给自己的包，若不是，还需要放回总线
+            // 缺点是会改变事件的顺序
             if packet.to == self.address {
                 // println!("{} recv {}", self.address, msg);
                 return Some(packet)
@@ -68,34 +72,61 @@ impl SimpleChannelMail {
 #[derive(Debug)]
 pub struct ActorCounter {
     pub address: String,
-    dispatcher: String,
-    reducer: String,
+    dispatcher_address: Option<String>,
+    reducer_address: Option<String>,
     mail: SimpleChannelMail,
-    main_tx: crossbeam_channel::Sender<String>,
+    main_tx: Sender,
 }
 
 
 impl ActorCounter {
-    pub fn new(address: &str, rx: crossbeam_channel::Receiver<String>, tx: crossbeam_channel::Sender<String>, dispatcher: &str, reducer: &str, main_tx: crossbeam_channel::Sender<String>) -> ActorCounter {
+    pub fn new(address: &str, rx: Receiver, tx: Sender, main_tx: Sender) -> ActorCounter {
         ActorCounter {
             address: address.to_string(),
             mail: SimpleChannelMail::new(address, rx, tx),
-            dispatcher: dispatcher.to_string(),
-            reducer: reducer.to_string(),
-            main_tx
+            main_tx,
+            dispatcher_address: None,
+            reducer_address: None,
+        }
+    }
+
+    pub fn save_dispatcher_address(&mut self, address: &str) {
+        self.dispatcher_address = Some(address.to_string());
+    }
+
+    pub fn save_reducer_address(&mut self, address: &str) {
+        self.reducer_address = Some(address.to_string());
+    }
+
+    pub fn get_dispatcher_address(&self) -> String {
+        if let Some(address) = &self.dispatcher_address {
+            address.to_string()
+        } else {
+            panic!("{}", format!("{}: dispatcher address is None", self.address));
+        }
+    }
+
+    pub fn get_reducer_address(&self) -> String {
+        if let Some(address) = &self.reducer_address {
+            address.to_string()
+        } else {
+            panic!("{}", format!("{}: reducer address is None", self.address));
         }
     }
 
     // 计数器，收到count指令后计算质数，每算出一个向reducer发送一个
     pub fn run(&mut self) {
-        println!("start {}, dispatcher is: {}, reducer is: {}", self.address, self.dispatcher, self.reducer);
+        let dispatcher = self.get_dispatcher_address();
+        let reducer = self.get_reducer_address();
+
+        println!("start {}, dispatcher is: {}, reducer is: {}", self.address, dispatcher, reducer);
         self.ready();
         loop {
             // std::thread::sleep(std::time::Duration::from_millis(300));
             if let Some(packet) = self.mail.recv() {
                 match packet.command.as_str() {
                     "count range" => {
-                        let range = packet.data.split(",").collect::<Vec<&str>>();
+                        let range = packet.data.split(',').collect::<Vec<&str>>();
                         self.count(range[0].parse::<u64>().unwrap(), range[1].parse::<u64>().unwrap());
                     },
                     "done" => {
@@ -115,7 +146,8 @@ impl ActorCounter {
 
         for i in from..to {
             if is_prime(i) {
-                self.mail.send("reducer", "prime value", &format!("{}", i));
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                self.mail.send(&self.get_reducer_address(), "prime value", &format!("{}", i));
             }
         }
 
@@ -125,7 +157,7 @@ impl ActorCounter {
 
     fn ready(&self) {
         println!("{} ready", self.address);
-        self.mail.send(&self.dispatcher, "worker ready", &self.address);
+        self.mail.send(&self.get_dispatcher_address(), "worker ready", &self.address);
     }
 }
 
@@ -134,20 +166,32 @@ pub struct ActorReducer {
     pub address: String,
     pub required_prime_count: u64,
     pub received_primes: Vec<String>,
-    dispatcher: String,
+    dispatcher_address: Option<String>,
     mail: SimpleChannelMail,
-    main_tx: crossbeam_channel::Sender<String>,
+    main_tx: Sender,
 }
 
 impl ActorReducer {
-    pub fn new(address: &str, rx: crossbeam_channel::Receiver<String>, tx: crossbeam_channel::Sender<String>, required_prime_count: u64, dispatcher: &str, main_tx: crossbeam_channel::Sender<String>) -> ActorReducer {
+    pub fn new(address: &str, rx: Receiver, tx: Sender, main_tx: Sender, required_prime_count: u64) -> ActorReducer {
         ActorReducer {
             address: address.to_string(),
             required_prime_count,
             received_primes: Vec::new(),
             mail: SimpleChannelMail::new(address, rx, tx),
-            dispatcher: dispatcher.to_string(),
+            dispatcher_address: None,
             main_tx
+        }
+    }
+
+    pub fn save_dispatcher_address(&mut self, address: &str) {
+        self.dispatcher_address = Some(address.to_string());
+    }
+
+    pub fn get_dispatcher_address(&self) -> String {
+        if let Some(address) = &self.dispatcher_address {
+            address.to_string()
+        } else {
+            panic!("{}", format!("{}: dispatcher address is None", self.address));
         }
     }
 
@@ -170,22 +214,16 @@ impl ActorReducer {
 
             if self.received_primes.len() >= self.required_prime_count as usize {
                 // TODO: sort
-                let result = self.received_primes
+                let mut result = self.received_primes
                     .clone()
                     .into_iter()
-                    .reduce(|p, c| {
-                        return format!("{},{}", p, c);
-                    });
- 
+                    .collect::<Vec<String>>();
+
+                result.sort_by(|a, b| a.parse::<u64>().unwrap().cmp(&b.parse::<u64>().unwrap()));
+
+                let dispatcher = self.get_dispatcher_address();
                 // 发送结束信号
-                match result {
-                    Some(r) => {
-                        self.mail.send(&self.dispatcher, "done", &r);
-                    },
-                    None => {
-                        self.mail.send(&self.dispatcher, "done", "none");
-                    }
-                }
+                self.mail.send(&dispatcher, "done", &result.join(","));
 
                 self.main_tx.send(self.address.clone()).unwrap();
                 break;
@@ -199,13 +237,13 @@ pub struct ActorDispatcher {
     pub address: String,
     pub range_start: u64,
     pub offset: u64,
-    main_tx: crossbeam_channel::Sender<String>,
+    main_tx: Sender,
     all_workers: Vec<String>, // 仅用于结束时停止worker
     mail: SimpleChannelMail,
 }
 
 impl ActorDispatcher {
-    pub fn new(address: &str, rx: crossbeam_channel::Receiver<String>, tx: crossbeam_channel::Sender<String>, range_start: u64, offset: u64, main_tx: crossbeam_channel::Sender<String>) -> ActorDispatcher {
+    pub fn new(address: &str, rx: Receiver, tx: Sender, main_tx: Sender, range_start: u64, offset: u64) -> ActorDispatcher {
         ActorDispatcher {
             range_start,
             offset,
@@ -250,7 +288,7 @@ impl ActorDispatcher {
     }
 
     fn notify(&mut self, worker: &str) {
-        self.mail.send(&worker, "count range", &format!("{},{}", self.range_start, self.range_start + self.offset));
+        self.mail.send(worker, "count range", &format!("{},{}", self.range_start, self.range_start + self.offset));
         self.range_start += self.offset;
     }
 }
@@ -259,14 +297,22 @@ pub fn test_actor_multi_thread() {
     let (tx, rx) = crossbeam_channel::unbounded();
     let (main_tx, main_rx) = crossbeam_channel::unbounded();
 
-    let mut dispatcher = ActorDispatcher::new("dispatcher", rx.clone(), tx.clone(), 1, 10000, main_tx.clone());
-    let mut reducer = ActorReducer::new("reducer", rx.clone(), tx.clone(), 10000, &dispatcher.address, main_tx.clone());
+    let mut dispatcher = ActorDispatcher::new("dispatcher", rx.clone(), tx.clone(), main_tx.clone(), 0, 1000);
+    let mut reducer = ActorReducer::new("reducer", rx.clone(), tx.clone(), main_tx.clone(), 10);
 
-    let mut worker_a = ActorCounter::new("worker A", rx.clone(), tx.clone(), &dispatcher.address, &reducer.address, main_tx.clone());
-    let mut worker_b = ActorCounter::new("worker B", rx.clone(), tx.clone(), &dispatcher.address, &reducer.address, main_tx.clone());
+    let mut worker_a = ActorCounter::new("worker A", rx.clone(), tx.clone(), main_tx.clone());
+    let mut worker_b = ActorCounter::new("worker B", rx.clone(), tx.clone(), main_tx.clone());
+
+    // ugly
+    reducer.save_dispatcher_address(&dispatcher.address);
 
     dispatcher.save_worker_address(&worker_a.address);
     dispatcher.save_worker_address(&worker_b.address);
+
+    worker_a.save_dispatcher_address(&dispatcher.address);
+    worker_a.save_reducer_address(&reducer.address);
+    worker_b.save_dispatcher_address(&dispatcher.address);
+    worker_b.save_reducer_address(&reducer.address);
 
     let threads = vec![
         std::thread::spawn(move || {
