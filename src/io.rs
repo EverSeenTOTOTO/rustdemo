@@ -99,7 +99,6 @@ pub fn test_read_dev_zero() -> Result<(), std::io::Error> {
 
     let mut file = std::fs::File::open("makefile")?;
     let mut zero = std::fs::File::open("/dev/zero")?;
-    let mut str = String::with_capacity(1024);
     let mut buffer = [0; 10];
 
     file.read(&mut buffer)?;

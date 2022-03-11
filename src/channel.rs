@@ -1,5 +1,5 @@
 pub fn test_channel() {
-    let (tx, rx) = flume::unbounded();
+    let (tx, rx) = crossbeam_channel::unbounded();
     let threads: Vec<_> = (0..2)
         .map(|id| {
             let tx = tx.clone();
@@ -29,11 +29,11 @@ pub fn test_channel() {
 }
 
 pub struct Consumer {
-    rx: flume::Receiver<i32>,
+    rx: crossbeam_channel::Receiver<i32>,
 }
 
 impl Consumer {
-    pub fn new(rx: flume::Receiver<i32>) -> Self {
+    pub fn new(rx: crossbeam_channel::Receiver<i32>) -> Self {
         Self { rx }
     }
 }
@@ -51,12 +51,12 @@ impl Iterator for Consumer {
 }
 
 pub struct Producer {
-    tx: flume::Sender<i32>,
+    tx: crossbeam_channel::Sender<i32>,
     current: i32
 }
 
 impl Producer {
-    pub fn new(tx: flume::Sender<i32>) -> Self {
+    pub fn new(tx: crossbeam_channel::Sender<i32>) -> Self {
         Producer {
             tx,
             current: 0
@@ -77,7 +77,7 @@ impl Iterator for Producer {
 }
 
 pub fn test_iter() {
-    let (tx, rx) = flume::bounded(1);
+    let (tx, rx) = crossbeam_channel::bounded(1);
     let mut producer = Producer::new(tx);
     let mut consumer = Consumer::new(rx);
 
@@ -88,7 +88,7 @@ pub fn test_iter() {
 }
 
 pub fn infinite_produce() {
-    let (tx, _) = flume::unbounded();
+    let (tx, _) = crossbeam_channel::unbounded();
     let producer = Producer::new(tx);
 
     producer.for_each(drop);

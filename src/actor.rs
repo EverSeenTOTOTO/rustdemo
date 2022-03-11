@@ -133,9 +133,7 @@ impl ActorCounter {
                         self.main_tx.send(self.address.clone()).unwrap();
                         break;
                     },
-                    _ => {
-                        println!("{} unknown command: {}", self.address, & packet.command);
-                    }
+                    _ => unreachable!()
                 }
             }
         };
@@ -146,7 +144,7 @@ impl ActorCounter {
 
         for i in from..to {
             if is_prime(i) {
-                std::thread::sleep(std::time::Duration::from_millis(300));
+                // std::thread::sleep(std::time::Duration::from_millis(300));
                 self.mail.send(&self.get_reducer_address(), "prime value", &format!("{}", i));
             }
         }
@@ -206,9 +204,7 @@ impl ActorReducer {
                         println!("{} got {}", self.address, packet.data);
                         self.received_primes.push(packet.data);
                     },
-                    _ => {
-                        println!("{} unknown command: {}", self.address, & packet.command);
-                    }
+                    _ => unreachable!()
                 }
             }
 
@@ -279,9 +275,7 @@ impl ActorDispatcher {
                         self.main_tx.send(self.address.clone()).unwrap();
                         break;
                     },
-                    _ => {
-                        println!("{} unknown command: {}", self.address, & packet.command);
-                    }
+                    _ => unreachable!()
                 }
             }
         }

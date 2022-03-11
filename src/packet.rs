@@ -1,4 +1,7 @@
-#[derive(Debug)]
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+#[derive(Serialize, Deserialize)]
 pub struct Packet {
     pub from: String,
     pub to: String,
@@ -17,24 +20,19 @@ impl Packet {
     }
 
     pub fn stringify(from: &str, to: &str, command: &str, data: &str) -> String {
-        let mut stringified = json::JsonValue::new_object();
+        let res = json!({
+            "from": from,
+            "to": to,
+            "command": command,
+            "data": data,
+        });
 
-        stringified["from"] = json::JsonValue::String(from.to_string());
-        stringified["to"] = json::JsonValue::String(to.to_string());
-        stringified["command"] = json::JsonValue::String(command.to_string());
-        stringified["data"] = json::JsonValue::String(data.to_string());
-
-        stringified.dump()
+        res.to_string()
     }
 
     pub fn parse(msg: &str) -> Packet {
-        let parsed: json::JsonValue = json::parse(msg).unwrap();
-        let from = parsed["from"].as_str().unwrap();
-        let to = parsed["to"].as_str().unwrap();
-        let command = parsed["command"].as_str().unwrap();
-        let data = parsed["data"].as_str().unwrap();
-
-        Packet::new(from, to, command, data)
+        let p: Packet = serde_json::from_str(msg).unwrap();
+        p
     }
 }
 

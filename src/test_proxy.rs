@@ -15,7 +15,7 @@ fn test_proxy(port: u16) -> Result<http::status::StatusCode, isahc::Error> {
 }
 
 pub fn test_proxy_ports(start: u16, end: u16) {
-    let (tx, rx) = flume::unbounded();
+    let (tx, rx) = crossbeam_channel::unbounded();
     let threads: Vec<_> = (start..end)
         .map(|port| {
             let tx = tx.clone();
