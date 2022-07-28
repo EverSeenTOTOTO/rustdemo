@@ -21,7 +21,7 @@ pub fn test_channel() {
                 }
             })
         })
-    .collect();
+        .collect();
 
     for thread in threads {
         thread.join().unwrap();
@@ -46,21 +46,18 @@ impl Iterator for Consumer {
             println!("consumed {}", val);
             return Some(val);
         }
-        None 
+        None
     }
 }
 
 pub struct Producer {
     tx: crossbeam_channel::Sender<i32>,
-    current: i32
+    current: i32,
 }
 
 impl Producer {
     pub fn new(tx: crossbeam_channel::Sender<i32>) -> Self {
-        Producer {
-            tx,
-            current: 0
-        }
+        Producer { tx, current: 0 }
     }
 }
 
@@ -70,7 +67,7 @@ impl Iterator for Producer {
     fn next(&mut self) -> Option<Self::Item> {
         println!("produced {}", self.current);
         self.tx.try_send(self.current).ok();
-        self.current+=1;
+        self.current += 1;
 
         Some(self.current)
     }

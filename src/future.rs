@@ -4,10 +4,10 @@ use std::{
     task::{Context, Poll},
 };
 
-use tracing::info;
-use isahc::{prelude::*, HttpClient};
 use color_eyre::Report;
 use futures::{stream::FuturesUnordered, StreamExt};
+use isahc::HttpClient;
+use tracing::info;
 
 pub struct DumbFuture {}
 

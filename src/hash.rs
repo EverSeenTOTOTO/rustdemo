@@ -2,9 +2,9 @@ use argh::FromArgs;
 use async_std::{fs::File, io::ReadExt};
 
 use color_eyre::eyre;
+use futures::io::AsyncRead;
 use sha3::Digest;
 use std::path::{Path, PathBuf};
-use futures::io::AsyncRead;
 
 /// Prints the SHA3-256 hash of some files
 #[derive(FromArgs)]

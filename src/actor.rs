@@ -53,7 +53,7 @@ impl SimpleChannelMail {
             // 缺点是会改变事件的顺序
             if packet.to == self.address {
                 // println!("{} recv {}", self.address, msg);
-                return Some(packet)
+                return Some(packet);
             } else {
                 self.put_back(&msg);
             }
@@ -78,7 +78,6 @@ pub struct ActorCounter {
     main_tx: Sender,
 }
 
-
 impl ActorCounter {
     pub fn new(address: &str, rx: Receiver, tx: Sender, main_tx: Sender) -> ActorCounter {
         ActorCounter {
@@ -102,7 +101,10 @@ impl ActorCounter {
         if let Some(address) = &self.dispatcher_address {
             address.to_string()
         } else {
-            panic!("{}", format!("{}: dispatcher address is None", self.address));
+            panic!(
+                "{}",
+                format!("{}: dispatcher address is None", self.address)
+            );
         }
     }
 
@@ -119,7 +121,10 @@ impl ActorCounter {
         let dispatcher = self.get_dispatcher_address();
         let reducer = self.get_reducer_address();
 
-        println!("start {}, dispatcher is: {}, reducer is: {}", self.address, dispatcher, reducer);
+        println!(
+            "start {}, dispatcher is: {}, reducer is: {}",
+            self.address, dispatcher, reducer
+        );
         self.ready();
         loop {
             // std::thread::sleep(std::time::Duration::from_millis(300));
@@ -127,16 +132,19 @@ impl ActorCounter {
                 match packet.command.as_str() {
                     "count range" => {
                         let range = packet.data.split(',').collect::<Vec<&str>>();
-                        self.count(range[0].parse::<u64>().unwrap(), range[1].parse::<u64>().unwrap());
-                    },
+                        self.count(
+                            range[0].parse::<u64>().unwrap(),
+                            range[1].parse::<u64>().unwrap(),
+                        );
+                    }
                     "done" => {
                         self.main_tx.send(self.address.clone()).unwrap();
                         break;
-                    },
-                    _ => unreachable!()
+                    }
+                    _ => unreachable!(),
                 }
             }
-        };
+        }
     }
 
     fn count(&self, from: u64, to: u64) {
@@ -145,7 +153,11 @@ impl ActorCounter {
         for i in from..to {
             if is_prime(i) {
                 // std::thread::sleep(std::time::Duration::from_millis(300));
-                self.mail.send(&self.get_reducer_address(), "prime value", &format!("{}", i));
+                self.mail.send(
+                    &self.get_reducer_address(),
+                    "prime value",
+                    &format!("{}", i),
+                );
             }
         }
 
@@ -155,7 +167,11 @@ impl ActorCounter {
 
     fn ready(&self) {
         println!("{} ready", self.address);
-        self.mail.send(&self.get_dispatcher_address(), "worker ready", &self.address);
+        self.mail.send(
+            &self.get_dispatcher_address(),
+            "worker ready",
+            &self.address,
+        );
     }
 }
 
@@ -170,14 +186,20 @@ pub struct ActorReducer {
 }
 
 impl ActorReducer {
-    pub fn new(address: &str, rx: Receiver, tx: Sender, main_tx: Sender, required_prime_count: u64) -> ActorReducer {
+    pub fn new(
+        address: &str,
+        rx: Receiver,
+        tx: Sender,
+        main_tx: Sender,
+        required_prime_count: u64,
+    ) -> ActorReducer {
         ActorReducer {
             address: address.to_string(),
             required_prime_count,
             received_primes: Vec::new(),
             mail: SimpleChannelMail::new(address, rx, tx),
             dispatcher_address: None,
-            main_tx
+            main_tx,
         }
     }
 
@@ -189,7 +211,10 @@ impl ActorReducer {
         if let Some(address) = &self.dispatcher_address {
             address.to_string()
         } else {
-            panic!("{}", format!("{}: dispatcher address is None", self.address));
+            panic!(
+                "{}",
+                format!("{}: dispatcher address is None", self.address)
+            );
         }
     }
 
@@ -203,14 +228,15 @@ impl ActorReducer {
                     "prime value" => {
                         println!("{} got {}", self.address, packet.data);
                         self.received_primes.push(packet.data);
-                    },
-                    _ => unreachable!()
+                    }
+                    _ => unreachable!(),
                 }
             }
 
             if self.received_primes.len() >= self.required_prime_count as usize {
                 // TODO: sort
-                let mut result = self.received_primes
+                let mut result = self
+                    .received_primes
                     .clone()
                     .into_iter()
                     .collect::<Vec<String>>();
@@ -239,14 +265,21 @@ pub struct ActorDispatcher {
 }
 
 impl ActorDispatcher {
-    pub fn new(address: &str, rx: Receiver, tx: Sender, main_tx: Sender, range_start: u64, offset: u64) -> ActorDispatcher {
+    pub fn new(
+        address: &str,
+        rx: Receiver,
+        tx: Sender,
+        main_tx: Sender,
+        range_start: u64,
+        offset: u64,
+    ) -> ActorDispatcher {
         ActorDispatcher {
             range_start,
             offset,
             address: address.to_string(),
             mail: SimpleChannelMail::new(address, rx, tx),
             all_workers: Vec::new(),
-            main_tx
+            main_tx,
         }
     }
 
@@ -264,7 +297,7 @@ impl ActorDispatcher {
                     "worker ready" => {
                         println!("{} got {}", self.address, packet.data);
                         self.notify(&packet.data);
-                    },
+                    }
                     "done" => {
                         println!("final result: {}", packet.data);
 
@@ -274,15 +307,19 @@ impl ActorDispatcher {
 
                         self.main_tx.send(self.address.clone()).unwrap();
                         break;
-                    },
-                    _ => unreachable!()
+                    }
+                    _ => unreachable!(),
                 }
             }
         }
     }
 
     fn notify(&mut self, worker: &str) {
-        self.mail.send(worker, "count range", &format!("{},{}", self.range_start, self.range_start + self.offset));
+        self.mail.send(
+            worker,
+            "count range",
+            &format!("{},{}", self.range_start, self.range_start + self.offset),
+        );
         self.range_start += self.offset;
     }
 }
@@ -291,7 +328,14 @@ pub fn test_actor_multi_thread() {
     let (tx, rx) = crossbeam_channel::unbounded();
     let (main_tx, main_rx) = crossbeam_channel::unbounded();
 
-    let mut dispatcher = ActorDispatcher::new("dispatcher", rx.clone(), tx.clone(), main_tx.clone(), 0, 1000);
+    let mut dispatcher = ActorDispatcher::new(
+        "dispatcher",
+        rx.clone(),
+        tx.clone(),
+        main_tx.clone(),
+        0,
+        1000,
+    );
     let mut reducer = ActorReducer::new("reducer", rx.clone(), tx.clone(), main_tx.clone(), 10);
 
     let mut worker_a = ActorCounter::new("worker A", rx.clone(), tx.clone(), main_tx.clone());

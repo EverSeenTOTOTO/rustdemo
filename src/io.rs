@@ -85,17 +85,20 @@ pub fn test_read_stdin() -> Result<(), std::io::Error> {
     if locations.is_empty() {
         println!("No comma found");
     } else {
-        println!("{}", Mistake {
-            path: "stdin",
-            text: buffer,
-            locations,
-        });
+        println!(
+            "{}",
+            Mistake {
+                path: "stdin",
+                text: buffer,
+                locations,
+            }
+        );
     }
     Ok(())
 }
 
 pub fn test_read_dev_zero() -> Result<(), std::io::Error> {
-    use std::io::{Write,Read};
+    use std::io::{Read, Write};
 
     let mut file = std::fs::File::open("makefile")?;
     let mut zero = std::fs::File::open("/dev/zero")?;

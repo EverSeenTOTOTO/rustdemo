@@ -1,7 +1,7 @@
 use isahc::{prelude::*, HttpClient};
 
 fn test_proxy(port: u16) -> Result<http::status::StatusCode, isahc::Error> {
-    let url = format!("http://localhost:{}" , port);
+    let url = format!("http://localhost:{}", port);
 
     println!("Testing proxy on url: {}", url);
 
@@ -26,7 +26,6 @@ pub fn test_proxy_ports(start: u16, end: u16) {
             })
         })
         .collect();
-
 
     for thread in threads {
         println!("Joining thread: {:?}", thread.thread().id());
