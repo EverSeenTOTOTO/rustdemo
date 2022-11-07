@@ -1,28 +1,65 @@
-mod actor;
-mod packet;
+#![allow(non_snake_case)]
+use std::{
+    sync::{
+        mpsc::{sync_channel, SyncSender},
+        Arc,
+    },
+    thread,
+    time::Duration,
+};
 
-use color_eyre::Report;
-use tracing_subscriber;
-
-#[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<(), Report> {
-    setup()?;
-
-    return Ok(());
+fn setTimeout<'s>(callback: &'s dyn Fn(), timeout: u64) {
+    std::thread::sleep(Duration::from_millis(timeout));
+    callback();
 }
 
-fn setup() -> Result<(), Report> {
-    if std::env::var("RUST_BACKTRACE").is_err() {
-        std::env::set_var("RUST_BACKTRACE", "full");
-    }
+type Lambda<'a, Param> = Arc<dyn Fn(Param) + Send + Sync + 'a>;
 
-    color_eyre::install().unwrap();
+// Rust does not support recursive lambda function
+struct Closure<'a> {
+    lambda: &'a dyn Fn(&Closure),
+}
 
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
-    }
+// How to convert to SyncSender<Lambda<&Closure>> with appropriate lifetime?
+type Yield = SyncSender<Arc<dyn Fn(&Closure) + Send + Sync>>;
 
-    tracing_subscriber::fmt::init();
+fn autoRun(gen: Lambda<'static, Yield>) {
+    let (tx, rx): (Yield, _) = sync_channel(1);
 
-    return Ok(());
+    let run = Closure {
+        lambda: &|this| {
+            if let Ok(result) = rx.recv() {
+                result(&this);
+            }
+        },
+    };
+
+    thread::spawn(move || gen(tx));
+    (run.lambda)(&run);
+}
+
+fn main() {
+    autoRun(Arc::new(|tx| {
+        tx.send(Arc::new(|next| {
+            setTimeout(
+                &|| {
+                    println!("2");
+                    (next.lambda)(&next);
+                },
+                1000,
+            );
+        }))
+        .unwrap();
+
+        tx.send(Arc::new(|next| {
+            setTimeout(
+                &|| {
+                    println!("3");
+                    (next.lambda)(&next);
+                },
+                1000,
+            );
+        }))
+        .unwrap();
+    }));
 }
