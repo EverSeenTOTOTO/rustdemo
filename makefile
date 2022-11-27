@@ -1,5 +1,9 @@
 OUT = target/debug/rustdemo
 
+.PHONY: lint
+lint:
+	cargo clippy --fix --allow-staged
+
 .PHONY: clean
 clean:
 	cargo clean
@@ -20,15 +24,10 @@ test:
 debug: build
 	gdb --quiet --args ${OUT}
 
-.PHONY: strace
-strace: build
-	strace -e 'connect' -f ${OUT} > /dev/null
-
 .PHONY: vul
 vul: build
 	valgrind --leak-check=full --trace-children=yes ${OUT}
 
 .PHONY: wasm
 wasm:
-	rustup target add wasm32-wasi
-	rustc src/main.rs --target wasm32-wasi
+	rustc src/main.rs --target wasm32-unknown-unknown

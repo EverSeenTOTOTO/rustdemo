@@ -2,8 +2,9 @@
 name = "rustdemo"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
 
 [dependencies]
 argh = "0.1.7"
@@ -18,5 +19,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
 sha3 = "0.10.1"
 tokio = { version = "1.17.0", features = ["full"] }
+
+macro-demo = { path = "macro-demo" }
 
 [features]
