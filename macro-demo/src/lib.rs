@@ -1,45 +1,33 @@
-#![feature(proc_macro_diagnostic)]
-
 use proc_macro::{self, TokenStream};
 use quote::quote;
-use syn::{Fields, Item, ItemStruct};
+use syn::{parse_quote, visit_mut::VisitMut, ItemFn};
+
+// visit and modify AST
+struct FnVisitor;
+
+impl VisitMut for FnVisitor {
+    fn visit_item_fn_mut(&mut self, node: &mut ItemFn) {
+        let old_block = &node.block;
+        let output = &node.sig.output;
+
+        node.block = Box::new(parse_quote! {
+            {
+                if let Err(_) = (|| #output #old_block)() { // #output 是原本的返回类型，#old_block
+                                                            // 是原本的函数体
+                    println!("got you");
+                }
+                return Ok(());
+            }
+        })
+    }
+}
 
 #[proc_macro_attribute]
-pub fn attr_demo(_metadata: TokenStream, input: TokenStream) -> TokenStream {
-    let item = syn::parse(input).expect("failed to parse input");
+pub fn nothrow(_: TokenStream, input: TokenStream) -> TokenStream {
+    let mut item: ItemFn = syn::parse(input).expect("failed to parse input");
 
-    match item {
-        Item::Struct(ref struct_item) => {
-            if has_foo(struct_item) {
-                raise(struct_item);
-            }
-        }
-
-        _ => unreachable!(),
-    }
+    FnVisitor.visit_item_fn_mut(&mut item);
 
     let output = quote! { #item };
     return output.into();
-}
-
-fn has_foo(s: &ItemStruct) -> bool {
-    match s.fields {
-        Fields::Named(ref fields) => fields
-            .named
-            .iter()
-            .any(|field| return field.ident.as_ref().unwrap() == "foo"),
-        _ => false,
-    }
-}
-
-fn raise(s: &ItemStruct) {
-    if let Fields::Named(ref fields) = s.fields {
-        for field in &fields.named {
-            let ident = field.ident.as_ref().unwrap();
-
-            if ident == "foo" {
-                ident.span().unstable().error("got it").emit();
-            }
-        }
-    }
 }
